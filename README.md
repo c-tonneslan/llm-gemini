@@ -24,10 +24,10 @@ llm keys set gemini
 ```
 You can also set the API key by assigning it to the environment variable `LLM_GEMINI_KEY`.
 
-Now run the model using `-m gemini-2.0-flash`, for example:
+Now run the model using `-m gemini-flash-latest`, for example:
 
 ```bash
-llm -m gemini-2.0-flash "A short joke about a pelican and a walrus"
+llm -m gemini-flash-latest "A short joke about a pelican and a walrus"
 ```
 
 > A pelican and a walrus are sitting at a bar. The pelican orders a fishbowl cocktail, and the walrus orders a plate of clams. The bartender asks, "So, what brings you two together?"
@@ -37,7 +37,7 @@ llm -m gemini-2.0-flash "A short joke about a pelican and a walrus"
 You can set the [default model](https://llm.datasette.io/en/stable/setup.html#setting-a-custom-default-model) to avoid the extra `-m` option:
 
 ```bash
-llm models default gemini-2.0-flash
+llm models default gemini-flash-latest
 llm "A joke about a pelican and a walrus"
 ```
 
@@ -52,17 +52,20 @@ result = runner.invoke(cli.cli, ["models", "-q", "gemini/"])
 lines = reversed(result.output.strip().split("\n"))
 to_output = []
 NOTES = {
+    "gemini/gemini-3.8-flash": "Gemini 3.8 Flash",
+    "gemini/gemini-3.7-flash": "Gemini 3.7 Flash",
+    "gemini/gemini-3.6-flash": "Gemini 3.6 Flash",
+    "gemini/gemini-3.5-flash": "Gemini 3.5 Flash",
+    "gemini/gemini-3.5-flash-lite": "Gemini 3.5 Flash Lite",
+    "gemini/gemini-3.1-flash-lite": "Gemini 3.1 Flash Lite",
+    "gemini/gemma-4-31b-it": "Gemma 4 31B Instruct",
+    "gemini/gemma-4-26b-a4b-it": "Gemma 4 26B-A4B Instruct",
+    "gemini/gemini-3.1-flash-lite-preview": "Gemini 3.1 Flash Lite Preview",
     "gemini/gemini-3.1-pro-preview": "Gemini 3.1 Pro Preview",
-    "gemini/gemini-3-pro-preview": "Gemini 3 Pro Preview",
+    "gemini/gemini-3-flash-preview": "Gemini 3 Flash Preview",
     "gemini/gemini-flash-latest": "Latest Gemini Flash",
     "gemini/gemini-flash-lite-latest": "Latest Gemini Flash Lite",
     "gemini/gemini-2.5-flash": "Gemini 2.5 Flash",
-    "gemini/gemini-2.5-pro": "Gemini 2.5 Pro",
-    "gemini/gemini-2.5-flash": "Gemini 2.5 Flash",
-    "gemini/gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
-    "gemini/gemini-2.5-flash-preview-05-20": "Gemini 2.5 Flash preview (priced differently from 2.5 Flash)",
-    "gemini/gemini-2.0-flash-thinking-exp-01-21": "Experimental \"thinking\" model from January 2025",
-    "gemini/gemini-1.5-flash-8b-latest": "The least expensive model",
 }
 for line in lines:
     model_id, rest = line.split(None, 2)[1:]
@@ -75,58 +78,27 @@ for line in lines:
     )
 cog.out("\n".join(to_output))
 ]]] -->
-- `gemini/gemini-3.5-flash`
-- `gemini/gemini-3.1-flash-lite`
-- `gemini/gemma-4-31b-it`
-- `gemini/gemma-4-26b-a4b-it`
-- `gemini/gemini-3.1-flash-lite-preview`
+- `gemini/gemini-3.8-flash`: Gemini 3.8 Flash
+- `gemini/gemini-3.7-flash`: Gemini 3.7 Flash
+- `gemini/gemini-3.5-flash-lite`: Gemini 3.5 Flash Lite
+- `gemini/gemini-3.6-flash`: Gemini 3.6 Flash
+- `gemini/gemini-3.5-flash`: Gemini 3.5 Flash
+- `gemini/gemini-3.1-flash-lite`: Gemini 3.1 Flash Lite
+- `gemini/gemma-4-31b-it`: Gemma 4 31B Instruct
+- `gemini/gemma-4-26b-a4b-it`: Gemma 4 26B-A4B Instruct
+- `gemini/gemini-3.1-flash-lite-preview`: Gemini 3.1 Flash Lite Preview
 - `gemini/gemini-3.1-pro-preview-customtools`
 - `gemini/gemini-3.1-pro-preview`: Gemini 3.1 Pro Preview
-- `gemini/gemini-3-flash-preview`
-- `gemini/gemini-3-pro-preview`: Gemini 3 Pro Preview
-- `gemini/gemini-2.5-flash-lite-preview-09-2025`
-- `gemini/gemini-2.5-flash-preview-09-2025`
+- `gemini/gemini-3-flash-preview`: Gemini 3 Flash Preview
 - `gemini/gemini-flash-lite-latest`: Latest Gemini Flash Lite
 - `gemini/gemini-flash-latest`: Latest Gemini Flash
-- `gemini/gemini-2.5-flash-lite`: Gemini 2.5 Flash Lite
-- `gemini/gemini-2.5-pro`: Gemini 2.5 Pro
 - `gemini/gemini-2.5-flash`: Gemini 2.5 Flash
-- `gemini/gemini-2.5-pro-preview-06-05`
-- `gemini/gemini-2.5-flash-preview-05-20`: Gemini 2.5 Flash preview (priced differently from 2.5 Flash)
-- `gemini/gemini-2.5-pro-preview-05-06`
-- `gemini/gemini-2.5-flash-preview-04-17`
-- `gemini/gemini-2.5-pro-preview-03-25`
-- `gemini/gemini-2.5-pro-exp-03-25`
-- `gemini/gemini-2.0-flash-lite`
-- `gemini/gemini-2.0-pro-exp-02-05`
-- `gemini/gemini-2.0-flash`
-- `gemini/gemini-2.0-flash-thinking-exp-01-21`: Experimental "thinking" model from January 2025
-- `gemini/gemini-2.0-flash-thinking-exp-1219`
-- `gemini/gemma-3n-e4b-it`
-- `gemini/gemma-3-27b-it`
-- `gemini/gemma-3-12b-it`
-- `gemini/gemma-3-4b-it`
-- `gemini/gemma-3-1b-it`
-- `gemini/learnlm-1.5-pro-experimental`
-- `gemini/gemini-2.0-flash-exp`
-- `gemini/gemini-exp-1206`
-- `gemini/gemini-exp-1121`
-- `gemini/gemini-exp-1114`
-- `gemini/gemini-1.5-flash-8b-001`
-- `gemini/gemini-1.5-flash-8b-latest`: The least expensive model
-- `gemini/gemini-1.5-flash-002`
-- `gemini/gemini-1.5-pro-002`
-- `gemini/gemini-1.5-flash-001`
-- `gemini/gemini-1.5-pro-001`
-- `gemini/gemini-1.5-flash-latest`
-- `gemini/gemini-1.5-pro-latest`
-- `gemini/gemini-pro`
 <!-- [[[end]]] -->
 
 All of these models have aliases that omit the `gemini/` prefix, for example:
 
 ```bash
-llm -m gemini-1.5-flash-8b-latest --schema 'name,age int,bio' 'invent a dog'
+llm -m gemini-flash-latest --schema 'name,age int,bio' 'invent a dog'
 ```
 
 ### Images, audio and video
@@ -134,23 +106,23 @@ llm -m gemini-1.5-flash-8b-latest --schema 'name,age int,bio' 'invent a dog'
 Gemini models are multi-modal. You can provide images, audio or video files as input like this:
 
 ```bash
-llm -m gemini-2.0-flash 'extract text' -a image.jpg
+llm -m gemini-flash-latest 'extract text' -a image.jpg
 ```
 Or with a URL:
 ```bash
-llm -m gemini-2.0-flash-lite 'describe image' \
+llm -m gemini-flash-latest 'describe image' \
   -a https://static.simonwillison.net/static/2024/pelicans.jpg
 ```
 Audio works too:
 
 ```bash
-llm -m gemini-2.0-flash 'transcribe audio' -a audio.mp3
+llm -m gemini-flash-latest 'transcribe audio' -a audio.mp3
 ```
 
 And video:
 
 ```bash
-llm -m gemini-2.0-flash 'describe what happens' -a video.mp4
+llm -m gemini-flash-latest 'describe what happens' -a video.mp4
 ```
 The Gemini prompting guide includes [extensive advice](https://ai.google.dev/gemini-api/docs/file-prompting-strategies) on multi-modal prompting.
 
@@ -159,7 +131,7 @@ The Gemini prompting guide includes [extensive advice](https://ai.google.dev/gem
 You can provide YouTube video URLs as attachments as well:
 
 ```bash
-llm -m gemini-3-pro-preview -a 'https://www.youtube.com/watch?v=9o1_DL9uNlM' \
+llm -m gemini-flash-latest -a 'https://www.youtube.com/watch?v=9o1_DL9uNlM' \
   'Produce a summary with relevant URLs and code example snippets, then an accurate transcript with timestamps.'
 ```
 [Example output here](https://gist.github.com/simonw/1b07aafb2bfc112b180ab68c864511cb).
@@ -171,7 +143,7 @@ These will be processed with media resolution `low` by default. You can use the 
 Use `-o json_object 1` to force the output to be JSON:
 
 ```bash
-llm -m gemini-2.0-flash -o json_object 1 \
+llm -m gemini-flash-latest -o json_object 1 \
   '3 largest cities in California, list of {"name": "..."}'
 ```
 Outputs:
@@ -183,39 +155,44 @@ Outputs:
 
 Gemini models can [write and execute code](https://ai.google.dev/gemini-api/docs/code-execution) - they can decide to write Python code, execute it in a secure sandbox and use the result as part of their response.
 
-To enable this feature, use `-o code_execution 1`:
+Enable this server-side tool with `-T CodeExecution`:
 
 ```bash
-llm -m gemini-2.0-flash -o code_execution 1 \
+llm -m gemini-3.6-flash -T CodeExecution \
 'use python to calculate (factorial of 13) * 3'
 ```
 ### Google search
 
-Some Gemini models support [Grounding with Google Search](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/ground-gemini#web-ground-gemini), where the model can run a Google search and use the results as part of answering a prompt.
+Some Gemini models support [Grounding with Google Search](https://ai.google.dev/gemini-api/docs/google-search), where the model can run a Google search and use the results as part of answering a prompt.
 
 Using this feature may incur additional requirements in terms of how you use the results. Consult [Google's documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/ground-gemini#web-ground-gemini) for more details.
 
-To run a prompt with Google search enabled, use `-o google_search 1`:
+Enable this server-side tool with `-T GoogleSearch`:
 
 ```bash
-llm -m gemini-2.0-flash -o google_search 1 \
+llm -m gemini-3.6-flash -T GoogleSearch \
   'What happened in Ireland today?'
 ```
 
-Use `llm logs -c --json` after running a prompt to see the full JSON response, which includes [additional information](https://github.com/simonw/llm-gemini/pull/29#issuecomment-2606201877) about grounded results.
+The plugin leaves the model's response text unchanged and retains Gemini's raw
+`groundingMetadata` on the response part. Use `llm logs -c --json` after running
+a prompt to inspect that metadata, which includes [additional information](https://github.com/simonw/llm-gemini/pull/29#issuecomment-2606201877) about grounded results.
+
+When Gemini returns native server-side tool invocation parts, the plugin exposes
+those as structured server-side tool call and result events as well.
 
 ### URL context
 
 Gemini models support a [URL context](https://ai.google.dev/gemini-api/docs/url-context) tool which, when enabled, allows the models to fetch additional content from URLs as part of their execution.
 
-You can enable that with the `-o url_context 1` option - for example:
+Enable this server-side tool with `-T URLContext` - for example:
 
 ```bash
-llm -m gemini-2.5-flash -o url_context 1 'Latest headline on simonwillison.net'
+llm -m gemini-2.5-flash -T URLContext 'Latest headline on simonwillison.net'
 ```
 Extra tokens introduced by this tool will be charged as input tokens. Use `--usage` to see details of those:
 ```bash
-llm -m gemini-2.5-flash -o url_context 1 --usage \
+llm -m gemini-2.5-flash -T URLContext --usage \
   'Latest headline on simonwillison.net'
 ```
 Outputs:
@@ -230,7 +207,7 @@ The `"toolUsePromptTokenCount"` key shows how many tokens were used for that URL
 To chat interactively with the model, run `llm chat`:
 
 ```bash
-llm chat -m gemini-2.0-flash
+llm chat -m gemini-flash-latest
 ```
 
 ### Timeouts
@@ -240,13 +217,13 @@ By default there is no `timeout` against the Gemini API. You can use the `timeou
 With the CLI tool that looks like this, to set a 1.5 second timeout:
 
 ```bash
-llm -m gemini-2.5-flash-preview-05-20 'epic saga about mice' -o timeout 1.5
+llm -m gemini-flash-latest 'epic saga about mice' -o timeout 1.5
 ```
 In the Python library timeouts are used like this:
 ```python
 import httpx, llm
 
-model = llm.get_model("gemini/gemini-2.5-flash-preview-05-20")
+model = llm.get_model("gemini/gemini-flash-latest")
 
 try:
     response = model.prompt(
@@ -260,27 +237,35 @@ An `httpx.TimeoutException` subclass will be raised if the timeout is exceeded.
 
 ## Embeddings
 
-The plugin also adds support for the `gemini-embedding-exp-03-07` and `text-embedding-004` embedding models.
+The plugin supports Google's current [Gemini embedding models](https://ai.google.dev/gemini-api/docs/embeddings):
+
+- `gemini-embedding-2` is the latest model.
+- `gemini-embedding-001` remains available for text-only use cases.
 
 Run that against a single string like this:
 ```bash
-llm embed -m text-embedding-004 -c 'hello world'
+llm embed -m gemini-embedding-2 -c 'hello world'
 ```
-This returns a JSON array of 768 numbers.
+This returns a JSON array of 3072 numbers.
 
-The `gemini-embedding-exp-03-07` model is larger, returning 3072 numbers. You can also use variants of it that are truncated down to smaller sizes:
+Both models have variants that ask Gemini to return its recommended smaller
+vector sizes of 768 or 1536 dimensions, specified as a suffix on the model ID:
 
-- `gemini-embedding-exp-03-07` - 3072 numbers
-- `gemini-embedding-exp-03-07-2048` - 2048 numbers
-- `gemini-embedding-exp-03-07-1024` - 1024 numbers
-- `gemini-embedding-exp-03-07-512` - 512 numbers
-- `gemini-embedding-exp-03-07-256` - 256 numbers
-- `gemini-embedding-exp-03-07-128` - 128 numbers
+- `gemini-embedding-2` - 3072 numbers
+- `gemini-embedding-2-1536` - 1536 numbers
+- `gemini-embedding-2-768` - 768 numbers
+- `gemini-embedding-001` - 3072 numbers
+- `gemini-embedding-001-1536` - 1536 numbers
+- `gemini-embedding-001-768` - 768 numbers
+
+The embedding spaces used by the two models are incompatible. If you switch an
+existing collection from `gemini-embedding-001` to `gemini-embedding-2`, you
+must re-embed all of its content.
 
 This command will embed every `README.md` file in child directories of the current directory and store the results in a SQLite database called `embed.db` in a collection called `readmes`:
 
 ```bash
-llm embed-multi readmes -d embed.db -m gemini-embedding-exp-03-07-128 \
+llm embed-multi readmes -d embed.db -m gemini-embedding-2-768 \
   --files . '*/README.md'
 ```
 You can then run similarity searches against that collection like this:

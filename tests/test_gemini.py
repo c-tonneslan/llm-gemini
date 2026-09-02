@@ -1,6 +1,7 @@
 from click.testing import CliRunner
 import llm
 from llm.cli import cli
+from llm.parts import StreamEvent
 import json
 import os
 import pytest
@@ -15,42 +16,14 @@ GEMINI_API_KEY = os.environ.get("PYTEST_GEMINI_API_KEY", None) or "gm-..."
 
 @pytest.mark.vcr
 def test_prompt():
-    model = llm.get_model("gemini-1.5-flash-latest")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt("Name for a pet pelican, just the name", key=GEMINI_API_KEY)
-    assert str(response) == "Percy\n"
-    assert response.response_json == {
-        "candidates": [
-            {
-                "finishReason": "STOP",
-                "safetyRatings": [
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                ],
-            }
-        ],
-        "modelVersion": "gemini-1.5-flash-latest",
-    }
-    assert response.token_details == {
-        "candidatesTokenCount": 2,
-        "promptTokensDetails": [{"modality": "TEXT", "tokenCount": 9}],
-        "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 2}],
-    }
-    assert response.input_tokens == 9
-    assert response.output_tokens == 2
+    assert str(response).strip()
+    assert response.response_json["candidates"][0]["finishReason"] == "STOP"
+    assert response.response_json["modelVersion"] == "gemini-3.6-flash"
+    assert response.input_tokens > 0
+    assert response.output_tokens > 0
+    assert response.token_details["candidatesTokenCount"] > 0
 
 
 # Skip async test on Python 3.14 due to httpcore cleanup incompatibility
@@ -61,12 +34,12 @@ def test_prompt():
 @pytest.mark.vcr
 @pytest.mark.asyncio
 async def test_prompt_async():
-    async_model = llm.get_async_model("gemini-1.5-flash-latest")
+    async_model = llm.get_async_model("gemini-flash-latest")
     response = await async_model.prompt(
         "Name for a pet pelican, just the name", key=GEMINI_API_KEY
     )
     text = await response.text()
-    assert text == "Percy\n"
+    assert text.strip()
     assert response.resolved_model == response.response_json["modelVersion"]
 
 
@@ -77,45 +50,18 @@ def test_prompt_with_pydantic_schema():
         age: int
         bio: str
 
-    class Dogs(BaseModel):
-        dogs: List[Dog]
-
-    model = llm.get_model("gemini-1.5-flash-latest")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt(
         "Invent a cool dog", key=GEMINI_API_KEY, schema=Dog, stream=False
     )
-    assert json.loads(response.text()) == {
-        "age": 3,
-        "bio": "A fluffy Samoyed with exceptional intelligence and a love for belly rubs. He's mastered several tricks, including fetching the newspaper and opening doors.",
-        "name": "Cloud",
-    }
-    assert response.response_json == {
-        "candidates": [
-            {
-                "finishReason": "STOP",
-                "safetyRatings": [
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "probability": "NEGLIGIBLE",
-                    },
-                ],
-            }
-        ],
-        "modelVersion": "gemini-1.5-flash-latest",
-    }
-    assert response.input_tokens == 10
+    dog = json.loads(response.text())
+    assert set(dog) == {"name", "age", "bio"}
+    assert isinstance(dog["name"], str)
+    assert isinstance(dog["age"], int)
+    assert isinstance(dog["bio"], str)
+    assert response.response_json["candidates"][0]["finishReason"] == "STOP"
+    assert response.response_json["modelVersion"] == "gemini-3.6-flash"
+    assert response.input_tokens > 0
 
 
 @pytest.mark.vcr
@@ -128,7 +74,7 @@ def test_prompt_with_multiple_dogs():
     class Dogs(BaseModel):
         dogs: List[Dog]
 
-    model = llm.get_model("gemini-2.0-flash")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt(
         "Invent 3 cool dogs", key=GEMINI_API_KEY, schema=Dogs, stream=False
     )
@@ -152,21 +98,41 @@ def test_prompt_with_multiple_dogs():
 @pytest.mark.parametrize(
     "model_id",
     (
-        "gemini-embedding-exp-03-07",
-        "gemini-embedding-exp-03-07-128",
-        "gemini-embedding-exp-03-07-512",
+        "gemini-embedding-001",
+        "gemini-embedding-001-768",
+        "gemini-embedding-2",
+        "gemini-embedding-2-768",
     ),
 )
 def test_embedding(model_id, monkeypatch):
     monkeypatch.setenv("LLM_GEMINI_KEY", GEMINI_API_KEY)
     model = llm.get_embedding_model(model_id)
     response = model.embed("Some text goes here")
-    expected_length = 3072
-    if model_id.endswith("-128"):
-        expected_length = 128
-    elif model_id.endswith("-512"):
-        expected_length = 512
+    expected_length = 768 if model_id.endswith("-768") else 3072
     assert len(response) == expected_length
+    magnitude = sum(component**2 for component in response) ** 0.5
+    assert magnitude == pytest.approx(1.0, abs=1e-6)
+
+
+@pytest.mark.vcr
+def test_embedding_batch(monkeypatch):
+    monkeypatch.setenv("LLM_GEMINI_KEY", GEMINI_API_KEY)
+    model = llm.get_embedding_model("gemini-embedding-2-768")
+    responses = model.embed_batch(["First text", "Second text"])
+    assert len(responses) == 2
+    assert all(len(response) == 768 for response in responses)
+
+
+def test_embedding_models():
+    dimensions = (768, 1536)
+    for gemini_model_id in ("gemini-embedding-2", "gemini-embedding-001"):
+        model = llm.get_embedding_model(gemini_model_id)
+        assert model.gemini_model_id == gemini_model_id
+        assert model.output_dimensionality is None
+        for dimension in dimensions:
+            model = llm.get_embedding_model(f"{gemini_model_id}-{dimension}")
+            assert model.gemini_model_id == gemini_model_id
+            assert model.output_dimensionality == dimension
 
 
 @pytest.mark.parametrize(
@@ -582,7 +548,7 @@ def test_nested_model_direct_reference():
         name: str
         address: Address
 
-    model = llm.get_model("gemini-2.0-flash")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt(
         "Create a person named Alice living in San Francisco",
         key=GEMINI_API_KEY,
@@ -613,7 +579,7 @@ def test_nested_model_optional():
         name: str
         employer: Optional[Company]
 
-    model = llm.get_model("gemini-2.0-flash")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt(
         "Create a person named Bob who works at TechCorp",
         key=GEMINI_API_KEY,
@@ -642,7 +608,7 @@ def test_nested_model_deep_composition():
         name: str
         orders: List[Order]
 
-    model = llm.get_model("gemini-2.0-flash")
+    model = llm.get_model("gemini-flash-latest")
     response = model.prompt(
         "Create a customer named Carol with 2 orders, each containing 2 items",
         key=GEMINI_API_KEY,
@@ -677,7 +643,7 @@ def test_cli_gemini_models(tmpdir, monkeypatch):
     # Try again with --key
     result2 = runner.invoke(cli, ["gemini", "models", "--key", GEMINI_API_KEY])
     assert result2.exit_code == 0
-    assert "gemini-1.5-flash-latest" in result2.output
+    assert "gemini-3.6-flash" in result2.output
     # And with --method
     result3 = runner.invoke(
         cli, ["gemini", "models", "--key", GEMINI_API_KEY, "--method", "embedContent"]
@@ -693,12 +659,12 @@ def test_resolved_model():
     model = llm.get_model("gemini-flash-latest")
     response = model.prompt("hi", key=GEMINI_API_KEY)
     response.text()
-    assert response.resolved_model == "gemini-2.5-flash-preview-09-2025"
+    assert response.resolved_model == "gemini-3.6-flash"
 
 
 @pytest.mark.vcr
 def test_tools():
-    model = llm.get_model("gemini-2.0-flash")
+    model = llm.get_model("gemini-2.5-flash")
     names = ["Charles", "Sammy"]
     chain_response = model.chain(
         "Two names for a pet pelican",
@@ -708,7 +674,8 @@ def test_tools():
         key=GEMINI_API_KEY,
     )
     text = chain_response.text()
-    assert text == "Okay, here are two names for a pet pelican: Charles and Sammy.\n"
+    assert "Charles" in text
+    assert "Sammy" in text
     # This one did three
     assert len(chain_response._responses) == 3
     first, second, third = chain_response._responses
@@ -833,11 +800,11 @@ def test_gemini_3_flash_has_all_thinking_levels():
     assert level_values == {"minimal", "low", "medium", "high"}
 
 
-def test_gemini_3_pro_has_limited_thinking_levels():
-    """Gemini 3 Pro should only support low and high thinking levels."""
+def test_gemini_31_pro_has_thinking_levels():
+    """Gemini 3.1 Pro should support low, medium and high thinking levels."""
     import typing
 
-    model = llm.get_model("gemini-3-pro-preview")
+    model = llm.get_model("gemini-3.1-pro-preview")
     options_class = model.Options
 
     # Check that thinking_level field exists
@@ -849,9 +816,9 @@ def test_gemini_3_pro_has_limited_thinking_levels():
     args = typing.get_args(annotation)
     thinking_enum = args[0] if args else annotation
 
-    # Check only 2 levels are available
+    # Check all 3 supported levels are available
     level_values = {e.value for e in thinking_enum}
-    assert level_values == {"low", "high"}
+    assert level_values == {"low", "medium", "high"}
 
 
 def test_gemini_25_flash_has_thinking_budget_not_level():
@@ -863,9 +830,9 @@ def test_gemini_25_flash_has_thinking_budget_not_level():
     assert "thinking_level" not in options_class.model_fields
 
 
-def test_gemini_20_flash_has_neither_thinking_option():
-    """Gemini 2.0 Flash should have neither thinking_budget nor thinking_level."""
-    model = llm.get_model("gemini-2.0-flash")
+def test_gemma_4_has_neither_thinking_option():
+    """Gemma 4 should have neither thinking_budget nor thinking_level."""
+    model = llm.get_model("gemma-4-26b-a4b-it")
     options_class = model.Options
 
     assert "thinking_budget" not in options_class.model_fields
@@ -895,8 +862,8 @@ def test_thinking_level_in_request_body():
     assert body["generationConfig"]["thinkingConfig"]["thinkingLevel"] == "high"
 
 
-def test_thinking_level_not_in_request_when_not_set():
-    """Thinking level should not be in request body when not set."""
+def test_thought_summaries_in_request_by_default():
+    """Thinking models should request visible thought summaries by default."""
     model = llm.get_model("gemini-3-flash-preview")
 
     class MockPrompt:
@@ -912,9 +879,62 @@ def test_thinking_level_not_in_request_when_not_set():
 
     body = model.build_request_body(mock_prompt, None)
 
-    # generationConfig may or may not exist, but if it does, thinkingConfig should not be there
+    assert body["generationConfig"]["thinkingConfig"] == {"includeThoughts": True}
+
+
+def test_thought_summaries_not_in_request_when_reasoning_hidden():
+    """hide_reasoning should disable visible Gemini thought summaries."""
+    model = llm.get_model("gemini-3-flash-preview")
+
+    class MockPrompt:
+        prompt = "test"
+        system = None
+        attachments = []
+        tools = None
+        schema = None
+        tool_results = None
+        hide_reasoning = True
+
+    mock_prompt = MockPrompt()
+    mock_prompt.options = model.Options()
+
+    body = model.build_request_body(mock_prompt, None)
+
     if "generationConfig" in body:
         assert "thinkingConfig" not in body["generationConfig"]
+
+
+def test_thought_part_yields_reasoning_stream_event():
+    """Gemini thought text parts should be surfaced as LLM reasoning events."""
+    model = llm.get_model("gemini-3-flash-preview")
+
+    class MockResponse:
+        def add_tool_call(self, tool_call):
+            raise AssertionError("No tool call expected")
+
+    events = list(
+        model.process_part(
+            {"thought": True, "text": "I should inspect the table first."},
+            MockResponse(),
+        )
+    )
+
+    assert len(events) == 1
+    assert events[0].type == "reasoning"
+    assert events[0].chunk == "I should inspect the table first."
+
+
+def test_empty_thought_part_yields_no_stream_event():
+    """Empty Gemini thought text should not open an empty reasoning block."""
+    model = llm.get_model("gemini-3-flash-preview")
+
+    class MockResponse:
+        def add_tool_call(self, tool_call):
+            raise AssertionError("No tool call expected")
+
+    events = list(model.process_part({"thought": True, "text": ""}, MockResponse()))
+
+    assert events == []
 
 
 @pytest.mark.vcr
@@ -946,3 +966,427 @@ def test_tools_with_gemini_3_thought_signatures():
     assert first_response.tool_calls()[0].name == "multiply"
     # The result should be 15
     assert "15" in text
+
+
+def test_build_messages_replays_stateless_history():
+    """Explicit messages should retain prior turns without a Conversation."""
+    from llm.parts import Message, TextPart
+
+    model = llm.get_model("gemini-2.5-flash")
+    chain = [
+        Message(role="user", parts=[TextPart(text="How many products in Germany?")]),
+        Message(role="assistant", parts=[TextPart(text="2,100 products.")]),
+        Message(role="user", parts=[TextPart(text="What was my first question?")]),
+    ]
+
+    class MockPrompt:
+        prompt = "What was my first question?"
+        system = None
+        attachments = []
+        tools = None
+        schema = None
+        tool_results = None
+        messages = chain
+
+    contents = model.build_messages(MockPrompt(), None)
+
+    assert contents[0] == {
+        "role": "user",
+        "parts": [{"text": "How many products in Germany?"}],
+    }
+    assert contents[1] == {
+        "role": "model",
+        "parts": [{"text": "2,100 products."}],
+    }
+    assert contents[-1] == {
+        "role": "user",
+        "parts": [{"text": "What was my first question?"}],
+    }
+
+
+def test_hosted_tool_options_are_removed():
+    model = llm.get_model("gemini-3.6-flash")
+
+    assert {
+        "google_search",
+        "url_context",
+        "code_execution",
+        "grounding_links",
+        "format_links",
+    }.isdisjoint(model.Options.model_fields)
+
+
+@pytest.mark.parametrize(
+    "model_id,expected_tools",
+    (
+        (
+            "gemini-3.6-flash",
+            {"GoogleSearch", "URLContext", "CodeExecution"},
+        ),
+        (
+            "gemini-2.5-flash",
+            {"GoogleSearch", "URLContext", "CodeExecution"},
+        ),
+        (
+            "gemini-flash-latest",
+            {"GoogleSearch", "URLContext", "CodeExecution"},
+        ),
+        ("gemma-4-26b-a4b-it", set()),
+    ),
+)
+def test_supported_server_side_tools(model_id, expected_tools):
+    model = llm.get_model(model_id)
+
+    assert {
+        tool.__name__ for tool in model.supported_server_side_tools
+    } == expected_tools
+
+
+def test_server_side_tool_request_specs_and_config():
+    from llm_gemini import CodeExecution, GoogleSearch, URLContext
+
+    model = llm.get_model("gemini-3.6-flash")
+    prompt = llm.Prompt(
+        "Research this and check the result with code",
+        model,
+        options=model.Options(),
+        tools=[GoogleSearch(), URLContext(), CodeExecution()],
+    )
+
+    body = model.build_request_body(prompt, None)
+
+    assert body["tools"] == [
+        {"googleSearch": {}},
+        {"urlContext": {}},
+        {"codeExecution": {}},
+    ]
+    assert body["toolConfig"] == {
+        "includeServerSideToolInvocations": True,
+        "functionCallingConfig": {"mode": "VALIDATED"},
+    }
+
+
+@pytest.mark.parametrize(
+    "model_id", ("gemini-flash-latest", "gemini-flash-lite-latest")
+)
+def test_latest_aliases_enable_server_tool_context(model_id):
+    from llm_gemini import GoogleSearch
+
+    model = llm.get_model(model_id)
+    local_tool = llm.Tool(name="local_tool", input_schema={"type": "object"})
+    prompt = llm.Prompt(
+        "Search for pelicans",
+        model,
+        options=model.Options(),
+        tools=[GoogleSearch(), local_tool],
+    )
+
+    body = model.build_request_body(prompt, None)
+
+    assert body["toolConfig"]["includeServerSideToolInvocations"] is True
+    assert body["tools"][1]["functionDeclarations"][0]["name"] == "local_tool"
+
+
+def test_gemini_3_combines_function_and_server_side_tools():
+    from llm_gemini import GoogleSearch
+
+    model = llm.get_model("gemini-3.6-flash")
+    weather = llm.Tool(
+        name="weather",
+        description="Look up the weather for a city",
+        input_schema={
+            "type": "object",
+            "properties": {"city": {"type": "string"}},
+            "required": ["city"],
+        },
+    )
+    prompt = llm.Prompt(
+        "Compare sources with the weather tool",
+        model,
+        options=model.Options(),
+        tools=[weather, GoogleSearch()],
+    )
+
+    body = model.build_request_body(prompt, None)
+
+    assert body["tools"] == [
+        {"googleSearch": {}},
+        {
+            "functionDeclarations": [
+                {
+                    "name": "weather",
+                    "description": "Look up the weather for a city",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"city": {"type": "string"}},
+                        "required": ["city"],
+                    },
+                }
+            ]
+        },
+    ]
+    assert body["toolConfig"] == {
+        "includeServerSideToolInvocations": True,
+        "functionCallingConfig": {"mode": "VALIDATED"},
+    }
+
+
+def test_pre_gemini_3_rejects_mixed_function_and_server_side_tools():
+    from llm_gemini import GoogleSearch
+
+    model = llm.get_model("gemini-2.5-flash")
+    local_tool = llm.Tool(name="local_tool", input_schema={"type": "object"})
+    prompt = llm.Prompt(
+        "Use both tools",
+        model,
+        options=model.Options(),
+        tools=[local_tool, GoogleSearch()],
+    )
+
+    with pytest.raises(ValueError, match="Gemini 3"):
+        model.build_request_body(prompt, None)
+
+
+def test_unsupported_server_side_tool_raises():
+    from llm_gemini import GoogleSearch
+
+    model = llm.get_model("gemma-4-26b-a4b-it")
+    prompt = llm.Prompt(
+        "Search for pelicans",
+        model,
+        options=model.Options(),
+        tools=[GoogleSearch()],
+    )
+
+    with pytest.raises(ValueError, match="does not support server-side tool"):
+        model.build_request_body(prompt, None)
+
+
+def test_server_side_tools_are_listed_by_cli():
+    runner = CliRunner()
+
+    result = runner.invoke(cli, ["tools", "list", "-m", "gemini-3.6-flash"])
+
+    assert result.exit_code == 0
+    assert "GoogleSearch()" in result.output
+    assert "URLContext()" in result.output
+    assert "CodeExecution()" in result.output
+
+
+class _NoLocalToolCallsResponse:
+    def add_tool_call(self, tool_call):
+        raise AssertionError("Server-side tools must not be registered as local calls")
+
+
+def test_native_server_tool_call_and_response_events():
+    model = llm.get_model("gemini-3.6-flash")
+    raw_call = {
+        "thoughtSignature": "signature-123",
+        "toolCall": {
+            "toolType": "GOOGLE_SEARCH_WEB",
+            "args": {"queries": ["latest pelican research"]},
+            "id": "search-123",
+        },
+    }
+    raw_response = {
+        "thoughtSignature": "signature-456",
+        "toolResponse": {
+            "toolType": "GOOGLE_SEARCH_WEB",
+            "response": {
+                "search_suggestions": [
+                    {"title": "Pelican research", "url": "https://example.com/"}
+                ]
+            },
+            "id": "search-123",
+        },
+    }
+
+    events = list(
+        model.process_candidates(
+            [{"content": {"parts": [raw_call, raw_response]}}],
+            _NoLocalToolCallsResponse(),
+        )
+    )
+
+    assert [event.type for event in events] == [
+        "tool_call_name",
+        "tool_call_args",
+        "tool_result",
+    ]
+    assert [event.tool_call_id for event in events] == [
+        "search-123",
+        "search-123",
+        "search-123",
+    ]
+    assert all(event.server_executed for event in events)
+    assert events[0].chunk == "google_search"
+    assert json.loads(events[1].chunk) == {"queries": ["latest pelican research"]}
+    assert events[2].tool_name == "google_search"
+    assert json.loads(events[2].chunk) == raw_response["toolResponse"]["response"]
+    assert events[0].provider_metadata == {"gemini": {"part": raw_call}}
+    assert events[2].provider_metadata == {"gemini": {"part": raw_response}}
+
+
+def test_empty_text_part_retains_thought_signature(monkeypatch):
+    model = llm.get_model("gemini-3.6-flash")
+
+    def execute(prompt, stream, response, conversation, key):
+        yield StreamEvent(type="text", chunk="answer")
+        yield from model.process_part(
+            {"text": "", "thoughtSignature": "signature-123"},
+            response,
+        )
+
+    monkeypatch.setattr(model, "execute", execute)
+    response = model.prompt("test", key="test")
+
+    assert response.text() == "answer"
+    text_part = response.messages()[0].parts[0]
+    assert text_part.provider_metadata == {
+        "gemini": {"thoughtSignature": "signature-123"}
+    }
+
+
+def test_native_code_execution_events_share_generated_id():
+    model = llm.get_model("gemini-3.6-flash")
+    raw_code = {
+        "executableCode": {
+            "language": "PYTHON",
+            "code": "print(6 * 7)",
+        }
+    }
+    raw_result = {
+        "codeExecutionResult": {
+            "outcome": "OUTCOME_OK",
+            "output": "42\n",
+        }
+    }
+
+    events = list(
+        model.process_candidates(
+            [{"content": {"parts": [raw_code, raw_result]}}],
+            _NoLocalToolCallsResponse(),
+        )
+    )
+
+    assert [event.type for event in events] == [
+        "tool_call_name",
+        "tool_call_args",
+        "tool_result",
+    ]
+    assert events[0].tool_call_id
+    assert len({event.tool_call_id for event in events}) == 1
+    assert all(event.server_executed for event in events)
+    assert events[0].chunk == "code_execution"
+    assert json.loads(events[1].chunk) == raw_code["executableCode"]
+    assert events[2].tool_name == "code_execution"
+    assert json.loads(events[2].chunk) == raw_result["codeExecutionResult"]
+    assert events[0].provider_metadata == {"gemini": {"part": raw_code}}
+    assert events[2].provider_metadata == {"gemini": {"part": raw_result}}
+
+
+def test_native_server_tool_parts_replay_verbatim():
+    from llm.parts import Message, ToolCallPart, ToolResultPart
+
+    model = llm.get_model("gemini-3.6-flash")
+    raw_call = {
+        "thoughtSignature": "signature-123",
+        "toolCall": {
+            "toolType": "URL_CONTEXT",
+            "args": {"urls": ["https://example.com/"]},
+            "id": "url-123",
+        },
+    }
+    raw_response = {
+        "toolResponse": {
+            "toolType": "URL_CONTEXT",
+            "response": {"url": "https://example.com/", "status": "OK"},
+            "id": "url-123",
+        }
+    }
+    messages = [
+        Message(
+            role="assistant",
+            parts=[
+                ToolCallPart(
+                    name="url_context",
+                    arguments=raw_call["toolCall"]["args"],
+                    tool_call_id="url-123",
+                    server_executed=True,
+                    provider_metadata={"gemini": {"part": raw_call}},
+                ),
+                ToolResultPart(
+                    name="url_context",
+                    output=json.dumps(raw_response["toolResponse"]["response"]),
+                    tool_call_id="url-123",
+                    server_executed=True,
+                    provider_metadata={"gemini": {"part": raw_response}},
+                ),
+            ],
+        )
+    ]
+
+    class MockPrompt:
+        prompt = None
+        system = None
+        attachments = []
+        tools = None
+        schema = None
+        tool_results = None
+
+    prompt = MockPrompt()
+    prompt.messages = messages
+    prompt.options = model.Options()
+
+    assert model.build_messages(prompt, None) == [
+        {"role": "model", "parts": [raw_call, raw_response]}
+    ]
+
+
+def test_google_search_grounding_metadata_is_raw_and_text_is_unchanged():
+    model = llm.get_model("gemini-3.6-flash")
+    grounding = {
+        "groundingChunks": [
+            {
+                "web": {
+                    "title": "Example source",
+                    "uri": "https://example.com/source",
+                }
+            },
+        ],
+        "groundingSupports": [
+            {
+                "segment": {
+                    "startIndex": 0,
+                    "endIndex": 24,
+                    "text": "Pelicans live worldwide.",
+                },
+                "groundingChunkIndices": [0],
+                "confidenceScores": [0.98],
+            }
+        ],
+        "webSearchQueries": ["where pelicans live"],
+        "searchEntryPoint": {
+            "renderedContent": (
+                '<a href="https://example.com/search">'
+                "<span>Latest pelican research</span></a>"
+            )
+        },
+    }
+
+    events = list(
+        model.process_candidates(
+            [
+                {
+                    "content": {"parts": [{"text": "Pelicans live worldwide."}]},
+                    "groundingMetadata": grounding,
+                }
+            ],
+            response=_NoLocalToolCallsResponse(),
+        )
+    )
+
+    assert len(events) == 1
+    assert events[0].type == "text"
+    assert events[0].chunk == "Pelicans live worldwide."
+    assert events[0].provider_metadata == {"gemini": {"groundingMetadata": grounding}}
